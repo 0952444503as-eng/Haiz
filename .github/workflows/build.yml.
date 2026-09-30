@@ -1,1 +1,223 @@
+name: Build APK
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - name: Create project
+        run: |
+          mkdir proj && cd proj
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositories { google(); mavenCentral() } }
+          rootProject.name = "ShiX"
+          include(":app")
+          EOF
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF
+          cat > gradle.properties <<'EOF'
+          android.useAndroidX=true
+          EOF
+          mkdir -p app
+          cat > app/build.gradle.kts <<'EOF'
+          plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
+          android {
+              namespace = "com.shix.app"
+              compileSdk = 34
+              defaultConfig {
+                  applicationId = "com.shix.app"; minSdk = 26; targetSdk = 34
+                  versionCode = 1; versionName = "1.0"
+              }
+              compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
+              kotlinOptions { jvmTarget = "17" }
+          }
+          dependencies { implementation("androidx.webkit:webkit:1.11.0") }
+          EOF
+          mkdir -p app/src/main
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher" android:theme="@style/AppTheme" android:allowBackup="true">
+                  <activity android:name=".MainActivity" android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden" android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+          mkdir -p app/src/main/res/values
+          cat > app/src/main/res/values/strings.xml <<'EOF'
+          <resources><string name="app_name">ШІ-Х</string></resources>
+          EOF
+          mkdir -p app/src/main/res/values
+          cat > app/src/main/res/values/themes.xml <<'EOF'
+          <resources><style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+          <item name="android:statusBarColor">#5B3DF5</item></style></resources>
+          EOF
+          mkdir -p app/src/main/res/values
+          cat > app/src/main/res/values/colors.xml <<'EOF'
+          <resources><color name="ic_bg">#5B3DF5</color></resources>
+          EOF
+          mkdir -p app/src/main/res/drawable
+          cat > app/src/main/res/drawable/ic_fg.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#FFFFFF" android:pathData="M34,32 H74 A6,6 0 0 1 80,38 V62 A6,6 0 0 1 74,68 H50 L38,79 V68 H34 A6,6 0 0 1 28,62 V38 A6,6 0 0 1 34,32 Z"/>
+              <path android:strokeColor="#5B3DF5" android:strokeWidth="4" android:strokeLineCap="round" android:pathData="M45,43 L63,57 M63,43 L45,57"/>
+          </vector>
+          EOF
+          mkdir -p app/src/main/res/mipmap-anydpi-v26
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_bg"/>
+              <foreground android:drawable="@drawable/ic_fg"/>
+          </adaptive-icon>
+          EOF
+          mkdir -p app/src/main/java/com/shix/app
+          cat > app/src/main/java/com/shix/app/MainActivity.kt <<'EOF'
+          package com.shix.app
 
+          import android.annotation.SuppressLint
+          import android.app.Activity
+          import android.os.Bundle
+          import android.webkit.WebResourceRequest
+          import android.webkit.WebResourceResponse
+          import android.webkit.WebView
+          import android.webkit.WebViewClient
+          import androidx.webkit.WebViewAssetLoader
+
+          class MainActivity : Activity() {
+              private lateinit var web: WebView
+
+              @SuppressLint("SetJavaScriptEnabled")
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  val loader = WebViewAssetLoader.Builder()
+                      .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this)).build()
+                  web = WebView(this)
+                  web.settings.javaScriptEnabled = true
+                  web.settings.domStorageEnabled = true
+                  web.webViewClient = object : WebViewClient() {
+                      override fun shouldInterceptRequest(v: WebView, r: WebResourceRequest): WebResourceResponse? =
+                          loader.shouldInterceptRequest(r.url)
+                  }
+                  setContentView(web)
+                  if (savedInstanceState == null) web.loadUrl("https://appassets.androidplatform.net/assets/index.html")
+                  else web.restoreState(savedInstanceState)
+              }
+
+              override fun onSaveInstanceState(o: Bundle) { super.onSaveInstanceState(o); web.saveState(o) }
+              @Deprecated("Deprecated in Java")
+              override fun onBackPressed() { if (web.canGoBack()) web.goBack() else super.onBackPressed() }
+          }
+          EOF
+          mkdir -p app/src/main/assets
+          cat > app/src/main/assets/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html lang="uk"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+          <title>ШІ-Х</title>
+          <style>
+          :root{--bg:#fff;--fg:#1c1b22;--card:#f1f0f7;--me:#5b3df5;--mefg:#fff;--bd:#dcd9ea}
+          @media(prefers-color-scheme:dark){:root{--bg:#131218;--fg:#ececf3;--card:#211f2b;--bd:#34314a}}
+          *{box-sizing:border-box}html,body{height:100%;margin:0}
+          body{background:var(--bg);color:var(--fg);font:16px system-ui,sans-serif;display:flex;flex-direction:column}
+          header{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#5b3df5;color:#fff}
+          header b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          button{font:inherit;border:0;border-radius:10px;padding:8px 12px;background:var(--card);color:var(--fg)}
+          header button{background:#ffffff26;color:#fff}
+          #msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+          .m{max-width:88%;padding:10px 12px;border-radius:14px;white-space:pre-wrap;word-wrap:break-word;background:var(--card)}
+          .m.user{align-self:flex-end;background:var(--me);color:var(--mefg)}
+          .m small{display:block;margin-top:6px;opacity:.6;cursor:pointer}
+          #bar{display:flex;gap:8px;padding:8px 12px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--bd)}
+          textarea,input{font:inherit;width:100%;border:1px solid var(--bd);border-radius:10px;padding:8px;background:var(--bg);color:var(--fg)}
+          #in{flex:1;resize:none;max-height:120px}
+          #send{background:var(--me);color:#fff}
+          .panel{position:fixed;top:0;bottom:0;left:0;right:0;background:var(--bg);z-index:5;padding:12px;overflow-y:auto;display:none}
+          .panel.on{display:block}.panel label{display:block;margin:12px 0 4px;opacity:.7}
+          .chat{display:flex;gap:8px;margin:6px 0}.chat button:first-child{flex:1;text-align:left}
+          #msgs,#bar{width:100%;max-width:820px;margin-left:auto;margin-right:auto}
+          #bar{border-radius:0}
+          .chat .act{background:#5b3df533;font-weight:600}
+          @media(min-width:800px){
+           body{padding-left:300px}
+           body{font-size:18px}
+           #hist{display:block;left:0;right:auto;width:300px;border-right:1px solid var(--bd)}
+           #hist>button:first-child,.menu{display:none}
+           #set{left:300px}
+           .m{max-width:75%}
+          }
+          </style></head><body>
+          <header><button class="menu" onclick="show('hist')">☰</button><b id="ttl">Новий чат</b>
+          <button onclick="newChat()">＋</button><button onclick="show('set')">⚙</button></header>
+          <div id="msgs"></div>
+          <div id="bar"><textarea id="in" rows="1" placeholder="Повідомлення…"></textarea><button id="send" onclick="send()">➤</button></div>
+
+          <div class="panel" id="hist"><button onclick="hide()">← Назад</button><h3>Історія чатів</h3><div id="list"></div></div>
+          <div class="panel" id="set"><button onclick="saveSet()">← Зберегти й назад</button><h3>Налаштування</h3>
+          <label>API-ключ Anthropic</label><input id="key" type="password" placeholder="sk-ant-…">
+          <label>Модель</label><input id="model">
+          <label>Системна інструкція (роль ШІ)</label><textarea id="sys" rows="4"></textarea>
+          <p style="opacity:.6">Ключ і чати зберігаються лише на цьому пристрої.</p>
+          <button onclick="if(confirm('Видалити всі чати?')){S.chats=[];newChat();hide()}">Видалити всі чати</button></div>
+
+          <script>
+          const $=id=>document.getElementById(id);
+          let S={};try{S=JSON.parse(localStorage.shix||"{}")}catch(e){}
+          S.chats=S.chats||[];S.key=S.key||"";S.model=S.model||"claude-sonnet-5-5";S.sys=S.sys||"Ти — ШІ-Х, корисний помічник. Відповідай мовою користувача.";
+          let cur=null,busy=false;
+          const save=()=>{try{localStorage.shix=JSON.stringify(S)}catch(e){}};
+          function newChat(){cur={id:Date.now(),title:"Новий чат",m:[]};S.chats.unshift(cur);render();save()}
+          function render(){$("ttl").textContent=cur.title;const box=$("msgs");box.innerHTML="";
+           cur.m.forEach(x=>{const d=document.createElement("div");d.className="m "+x.role;d.textContent=x.content;
+            if(x.role=="assistant"){const c=document.createElement("small");c.textContent="Копіювати";
+             c.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(x.content);c.textContent="Скопійовано ✓"};d.appendChild(c)}
+            box.appendChild(d)});box.scrollTop=box.scrollHeight;list()}
+          function show(id){if(id=="hist")list();if(id=="set"){$("key").value=S.key;$("model").value=S.model;$("sys").value=S.sys}$(id).classList.add("on")}
+          function hide(){document.querySelectorAll(".panel").forEach(p=>p.classList.remove("on"))}
+          function saveSet(){S.key=$("key").value.trim();S.model=$("model").value.trim()||"claude-sonnet-5-5";S.sys=$("sys").value;save();hide()}
+          function list(){const l=$("list");l.innerHTML="";S.chats.forEach(c=>{const r=document.createElement("div");r.className="chat";
+           const o=document.createElement("button");o.textContent=c.title;if(c===cur)o.className="act";o.onclick=()=>{cur=c;render();hide()};
+           const x=document.createElement("button");x.textContent="🗑";
+           x.onclick=()=>{S.chats=S.chats.filter(z=>z!==c);if(!S.chats.length)newChat();else if(cur===c)cur=S.chats[0];save();render();list()};
+           r.append(o,x);l.appendChild(r)})}
+          async function send(){
+           const t=$("in").value.trim();if(!t||busy)return;
+           if(!S.key){show("set");return}
+           $("in").value="";cur.m.push({role:"user",content:t});
+           if(cur.m.length==1)cur.title=t.slice(0,40);
+           busy=true;cur.m.push({role:"assistant",content:"…"});render();
+           try{
+            const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{
+             "content-type":"application/json","x-api-key":S.key,"anthropic-version":"2023-06-01",
+             "anthropic-dangerous-direct-browser-access":"true"},
+             body:JSON.stringify({model:S.model,max_tokens:2000,system:S.sys,
+              messages:cur.m.slice(0,-1).map(({role,content})=>({role,content}))})});
+            const d=await r.json();
+            cur.m[cur.m.length-1].content=r.ok?d.content.map(b=>b.text||"").join(""):"Помилка: "+(d.error&&d.error.message||r.status);
+           }catch(e){cur.m[cur.m.length-1].content="Помилка мережі: "+e.message}
+           busy=false;save();render()}
+          if(!S.chats.length)newChat();else cur=S.chats[0];render();
+          </script></body></html>
+          EOF
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.7" }
+      - name: Build
+        run: gradle assembleDebug
+        working-directory: proj
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShiX-apk
+          path: proj/app/build/outputs/apk/debug/*.apk
