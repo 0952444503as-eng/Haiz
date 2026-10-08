@@ -1,0 +1,88 @@
+name: Build NovaChat APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
+      with:
+        api-levels: '35'
+        build-tools-version: '35.0.0'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Install Cordova
+      run: npm install -g cordova
+
+    - name: Add Android platform
+      run: cordova platform add android
+
+    - name: Build APK (Debug)
+      run: cordova build android
+
+    - name: Upload APK to artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: NovaChat-APK
+        path: platforms/android/app/build/outputs/apk/debug/app-debug.apk
+
+    - name: Create Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: NovaChat v${{ github.run_number }}
+        body: |
+          🤖 NovaChat APK Release
+          
+          Built automatically from the latest code.
+          Download app-debug.apk and install on your Android device.
+          
+          **Requirements:**
+          - Android 5.1+ (API 22+)
+          - OpenAI API Key
+          
+          **Installation:**
+          1. Copy app-debug.apk to your device
+          2. Open file manager
+          3. Tap the APK file
+          4. Allow installation from unknown sources if prompted
+        draft: false
+        prerelease: false
+
+    - name: Upload release asset
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./platforms/android/app/build/outputs/apk/debug/app-debug.apk
+        asset_name: NovaChat-v${{ github.run_number }}.apk
+        asset_content_type: application/vnd.android.package-archive
